@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import OtpModal from '../components/OtpModal';
+import { supabase } from '../lib/supabaseClient';
+import { saveSession } from '../lib/session';
+import type { AuthUser } from '../types';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -10,13 +12,12 @@ export default function LoginPage() {
   const [pwTouched, setPwTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [showOtp, setShowOtp] = useState(false);
 
   const idValid = userId.trim().length > 0;
   const pwValid = password.length >= 4;
   const formValid = idValid && pwValid;
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setIdTouched(true);
     setPwTouched(true);
@@ -24,15 +25,26 @@ export default function LoginPage() {
 
     setLoginError(null);
     setLoading(true);
-    // 프로토타입: 실제 인증은 추후 Supabase Auth 연동
-    setTimeout(() => {
-      setLoading(false);
-      setShowOtp(true);
-    }, 600);
-  }
 
-  function handleVerified() {
-    setShowOtp(false);
+    const { data, error } = await supabase.rpc('login', {
+      p_username: userId.trim(),
+      p_password: password,
+    });
+
+    setLoading(false);
+
+    if (error) {
+      setLoginError('로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+
+    const user = data?.[0] as AuthUser | undefined;
+    if (!user) {
+      setLoginError('아이디 또는 비밀번호가 올바르지 않습니다.');
+      return;
+    }
+
+    saveSession(user);
     navigate('/home');
   }
 
@@ -147,19 +159,7 @@ export default function LoginPage() {
         >
           가족 초대 코드로 가입하기
         </button>
-
-        <p className="text-center text-[12px] text-text-400 mt-6 mb-8">
-          로그인 시 문자로 전송되는 인증번호(2FA) 확인이 필요합니다.
-        </p>
       </div>
-
-      {showOtp && (
-        <OtpModal
-          phoneNumber="010-****-1234"
-          onClose={() => setShowOtp(false)}
-          onVerified={handleVerified}
-        />
-      )}
     </div>
   );
 }

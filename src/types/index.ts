@@ -1,5 +1,14 @@
 export type ActivityCategory = 'travel' | 'running' | 'golf' | 'gym';
 
+export interface AuthUser {
+  id: string;
+  username: string;
+  name: string;
+  phone_number: string | null;
+  role: string;
+  avatar_url: string | null;
+}
+
 export interface FamilyMember {
   id: string;
   name: string;
