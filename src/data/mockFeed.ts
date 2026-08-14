@@ -1,16 +1,16 @@
 import type { ActivityCategory, CategoryMeta, FamilyMember, FeedItem } from '../types';
 
 export const CATEGORY_META: Record<ActivityCategory, CategoryMeta> = {
-  travel: { label: '여행', emoji: '✈️', color: '#F97316', bg: '#FFF7ED' },
-  running: { label: '러닝', emoji: '🏃', color: '#2563EB', bg: '#EFF6FF' },
-  golf: { label: '골프', emoji: '⛳', color: '#10B981', bg: '#ECFDF5' },
-  gym: { label: '헬스', emoji: '💪', color: '#7C3AED', bg: '#F5F3FF' },
+  travel: { label: '여행', emoji: '✈️', color: '#111827', bg: '#F1F5F9' },
+  running: { label: '러닝', emoji: '🏃', color: '#111827', bg: '#F1F5F9' },
+  golf: { label: '골프', emoji: '⛳', color: '#111827', bg: '#F1F5F9' },
+  gym: { label: '헬스', emoji: '💪', color: '#111827', bg: '#F1F5F9' },
 };
 
 export const FAMILY: FamilyMember[] = [
-  { id: 'dad', name: '아빠', avatarColor: '#2563EB', initial: '아' },
-  { id: 'mom', name: '엄마', avatarColor: '#F97316', initial: '엄' },
-  { id: 'yiseo', name: '이서', avatarColor: '#10B981', initial: '이' },
+  { id: 'dad', name: '아빠', avatarColor: '#111827', initial: '아' },
+  { id: 'mom', name: '엄마', avatarColor: '#6B7280', initial: '엄' },
+  { id: 'yiseo', name: '이서', avatarColor: '#9CA3AF', initial: '이' },
 ];
 
 export const MOCK_FEED: FeedItem[] = [

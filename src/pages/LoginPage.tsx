@@ -55,7 +55,7 @@ export default function LoginPage() {
         <div className="pt-16 pb-10">
           <div
             className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-5"
-            style={{ background: '#EFF6FF' }}
+            style={{ background: '#F1F5F9' }}
           >
             🏡
           </div>
@@ -87,12 +87,12 @@ export default function LoginPage() {
               className="w-full h-13 px-4 rounded-xl border text-[15px] text-text-900 placeholder:text-text-400"
               style={{
                 height: 52,
-                borderColor: idTouched && !idValid ? '#EF4444' : '#E5E7EB',
+                borderColor: idTouched && !idValid ? '#111827' : '#E5E7EB',
                 borderWidth: idTouched && !idValid ? 2 : 1,
               }}
             />
             {idTouched && !idValid && (
-              <p className="text-[12px] mt-1.5" style={{ color: '#EF4444' }}>
+              <p className="text-[12px] mt-1.5 font-semibold" style={{ color: '#111827' }}>
                 아이디를 입력해주세요.
               </p>
             )}
@@ -113,12 +113,12 @@ export default function LoginPage() {
               className="w-full h-13 px-4 rounded-xl border text-[15px] text-text-900 placeholder:text-text-400"
               style={{
                 height: 52,
-                borderColor: pwTouched && !pwValid ? '#EF4444' : '#E5E7EB',
+                borderColor: pwTouched && !pwValid ? '#111827' : '#E5E7EB',
                 borderWidth: pwTouched && !pwValid ? 2 : 1,
               }}
             />
             {pwTouched && !pwValid && (
-              <p className="text-[12px] mt-1.5" style={{ color: '#EF4444' }}>
+              <p className="text-[12px] mt-1.5 font-semibold" style={{ color: '#111827' }}>
                 비밀번호는 4자 이상 입력해주세요.
               </p>
             )}
@@ -131,7 +131,7 @@ export default function LoginPage() {
           </div>
 
           {loginError && (
-            <p className="text-[13px] text-center" style={{ color: '#EF4444' }}>
+            <p className="text-[13px] text-center font-semibold" style={{ color: '#111827' }}>
               {loginError}
             </p>
           )}
@@ -140,7 +140,7 @@ export default function LoginPage() {
             type="submit"
             disabled={loading}
             className="w-full h-13 rounded-xl text-white font-medium text-[15px] mt-2"
-            style={{ height: 52, background: loading ? '#93B6F4' : '#2563EB' }}
+            style={{ height: 52, background: loading ? '#9CA3AF' : '#111827' }}
           >
             {loading ? '확인 중...' : '로그인'}
           </button>

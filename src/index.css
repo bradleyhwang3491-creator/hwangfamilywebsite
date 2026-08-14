@@ -5,27 +5,27 @@
     system-ui, Roboto, sans-serif;
 
   --color-gray-bg: #F8F9FA;
-  --color-gray-border: #F1F3F5;
+  --color-gray-border: #E5E7EB;
   --color-gray-100: #F1F5F9;
 
   --color-text-900: #111827;
   --color-text-600: #4B5563;
   --color-text-400: #9CA3AF;
 
-  --color-primary-50: #EFF6FF;
-  --color-primary-600: #2563EB;
-  --color-primary-700: #1E40AF;
+  --color-primary-50: #F1F5F9;
+  --color-primary-600: #111827;
+  --color-primary-700: #000000;
 
-  --color-accent-orange: #F97316;
-  --color-accent-orange-bg: #FFF7ED;
-  --color-accent-green: #10B981;
-  --color-accent-green-bg: #ECFDF5;
-  --color-accent-violet: #7C3AED;
-  --color-accent-violet-bg: #F5F3FF;
+  --color-accent-orange: #4B5563;
+  --color-accent-orange-bg: #F1F5F9;
+  --color-accent-green: #374151;
+  --color-accent-green-bg: #F1F5F9;
+  --color-accent-violet: #6B7280;
+  --color-accent-violet-bg: #F1F5F9;
 
-  --color-danger: #EF4444;
-  --color-warning: #F59E0B;
-  --color-success: #10B981;
+  --color-danger: #111827;
+  --color-warning: #4B5563;
+  --color-success: #111827;
 
   --shadow-card: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06);
   --shadow-float: 0 8px 24px rgba(16,24,40,.10);
