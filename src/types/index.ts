@@ -9,6 +9,12 @@ export interface AuthUser {
   avatar_url: string | null;
 }
 
+export interface PublicUser {
+  id: string;
+  name: string;
+  avatar_url: string | null;
+}
+
 export interface FamilyMember {
   id: string;
   name: string;

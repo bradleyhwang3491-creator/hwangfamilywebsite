@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import BottomNav from '../components/BottomNav';
 import FeedCard from '../components/FeedCard';
-import { CATEGORY_META, FAMILY, MOCK_FEED } from '../data/mockFeed';
-import type { ActivityCategory } from '../types';
+import { supabase } from '../lib/supabaseClient';
+import { CATEGORY_META, MOCK_FEED } from '../data/mockFeed';
+import type { ActivityCategory, PublicUser } from '../types';
+
+const AVATAR_COLORS = ['#111827', '#4B5563', '#6B7280', '#9CA3AF'];
 
 const FILTERS: { key: ActivityCategory | 'all'; label: string; emoji: string }[] = [
   { key: 'all', label: '전체', emoji: '✨' },
@@ -17,6 +20,13 @@ const PAGE_SIZE = 10;
 export default function HomePage() {
   const [filter, setFilter] = useState<ActivityCategory | 'all'>('all');
   const [page, setPage] = useState(1);
+  const [familyMembers, setFamilyMembers] = useState<PublicUser[]>([]);
+
+  useEffect(() => {
+    supabase.rpc('list_family_members').then(({ data }) => {
+      if (data) setFamilyMembers(data);
+    });
+  }, []);
 
   const filteredFeed = filter === 'all' ? MOCK_FEED : MOCK_FEED.filter((f) => f.category === filter);
   const totalPages = Math.max(1, Math.ceil(filteredFeed.length / PAGE_SIZE));
@@ -33,42 +43,31 @@ export default function HomePage() {
       {/* Header */}
       <header className="safe-top px-5 pt-4 pb-3 bg-white sticky top-0 z-10 border-b border-gray-border">
         <div className="flex items-center justify-between mb-4">
-          <div>
-            <p className="text-[12px] text-text-400 mb-0.5">2026년 8월 14일 금요일</p>
-            <h1 className="text-[20px] font-bold text-text-900">황이서네 라이프로그</h1>
-          </div>
-          <button
-            aria-label="알림"
-            className="relative w-10 h-10 rounded-full flex items-center justify-center bg-gray-100"
-          >
-            🔔
-            <span
-              className="absolute top-1.5 right-2 w-2 h-2 rounded-full"
-              style={{ background: '#111827' }}
-            />
-          </button>
+          <h1 className="text-[20px] font-bold text-text-900">황이서네 라이프로그</h1>
         </div>
 
         {/* Family avatars row */}
         <div className="flex items-center gap-2 mb-4">
-          {FAMILY.map((m) => (
+          {familyMembers.map((m, i) => (
             <div key={m.id} className="flex flex-col items-center gap-1">
-              <span
-                className="w-11 h-11 rounded-full flex items-center justify-center text-white text-[13px] font-bold border-2 border-white"
-                style={{ background: m.avatarColor, boxShadow: 'var(--shadow-card)' }}
-              >
-                {m.initial}
-              </span>
+              {m.avatar_url ? (
+                <img
+                  src={m.avatar_url}
+                  alt={m.name}
+                  className="w-11 h-11 rounded-full object-cover border-2 border-white"
+                  style={{ boxShadow: 'var(--shadow-card)' }}
+                />
+              ) : (
+                <span
+                  className="w-11 h-11 rounded-full flex items-center justify-center text-white text-[13px] font-bold border-2 border-white"
+                  style={{ background: AVATAR_COLORS[i % AVATAR_COLORS.length], boxShadow: 'var(--shadow-card)' }}
+                >
+                  {m.name.charAt(0)}
+                </span>
+              )}
               <span className="text-[11px] text-text-600">{m.name}</span>
             </div>
           ))}
-          <button
-            className="w-11 h-11 rounded-full flex items-center justify-center text-text-400 text-[20px] border border-dashed"
-            style={{ borderColor: '#E5E7EB' }}
-            aria-label="가족 추가"
-          >
-            +
-          </button>
         </div>
 
         {/* Category filter chips */}
