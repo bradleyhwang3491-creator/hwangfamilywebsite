@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { saveSession } from '../lib/session';
 import type { AuthUser } from '../types';
+import familyHero from '../assets/family-hero.jpg';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -50,25 +51,15 @@ export default function LoginPage() {
 
   return (
     <div className="app-frame">
-      <div className="flex-1 flex flex-col px-6 safe-top">
-        {/* Brand */}
-        <div className="pt-16 pb-10">
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-5"
-            style={{ background: '#F1F5F9' }}
-          >
-            🏡
-          </div>
-          <h1 className="text-[28px] font-bold text-text-900 leading-tight mb-2">
-            황이서네
-            <br />
-            가족 라이프로그
-          </h1>
-          <p className="text-[15px] text-text-600">
-            여행, 러닝, 골프, 헬스 — 우리 가족의 하루를 기록해요.
-          </p>
-        </div>
-
+      <div className="px-5 pt-6">
+        <img
+          src={familyHero}
+          alt="황이서네 가족"
+          className="w-full h-48 object-cover rounded-3xl"
+          style={{ boxShadow: 'var(--shadow-card)' }}
+        />
+      </div>
+      <div className="flex-1 flex flex-col px-6 pt-6">
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
           <div>

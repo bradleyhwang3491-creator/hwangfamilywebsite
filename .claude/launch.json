@@ -6,6 +6,18 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 5173
+    },
+    {
+      "name": "hwang-family-mobile-app-dev",
+      "runtimeExecutable": "C:\\workspace\\hwang-family-web\\hwang-family-web\\run_mobile_dev.bat",
+      "runtimeArgs": [],
+      "port": 5174
+    },
+    {
+      "name": "hwang-family-mobile-app-static",
+      "runtimeExecutable": "C:\\workspace\\hwang-family-web\\hwang-family-web\\run_mobile_static.bat",
+      "runtimeArgs": [],
+      "port": 5175
     }
   ]
 }
