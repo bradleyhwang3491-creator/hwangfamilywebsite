@@ -4,11 +4,13 @@ import BottomNav from '../components/BottomNav';
 import { supabase } from '../lib/supabaseClient';
 import { geocodeAddress, type GeocodeResult } from '../lib/geocode';
 import { resizeImageToLimit } from '../lib/imageResize';
+import { getSession } from '../lib/session';
 
 const MAX_PHOTOS = 10;
 
 interface TravelRecord {
   id: string;
+  user_id: string;
   title: string;
   region: string;
   address: string;
@@ -73,7 +75,7 @@ export default function TravelRecordDetailPage() {
     setLoading(true);
     const { data: rec } = await supabase
       .from('travel_records')
-      .select('id, title, region, address, country, lat, lng, is_domestic, start_date, end_date, content')
+      .select('id, user_id, title, region, address, country, lat, lng, is_domestic, start_date, end_date, content')
       .eq('id', recordId)
       .maybeSingle();
 
@@ -288,6 +290,7 @@ export default function TravelRecordDetailPage() {
 
             <p className="text-[14px] text-text-900 leading-relaxed whitespace-pre-wrap">{record.content}</p>
 
+            {getSession()?.id === record.user_id && (
             <div className="flex gap-2 pt-2">
               <button
                 type="button"
@@ -328,6 +331,7 @@ export default function TravelRecordDetailPage() {
                 </div>
               )}
             </div>
+            )}
           </div>
         ) : (
           <div className="flex flex-col gap-5">

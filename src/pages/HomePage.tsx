@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import BottomNav from '../components/BottomNav';
 import FeedCard from '../components/FeedCard';
 import { supabase } from '../lib/supabaseClient';
-import { CATEGORY_META, MOCK_FEED } from '../data/mockFeed';
-import type { ActivityCategory, PublicUser } from '../types';
+import { loadHomeFeed } from '../lib/homeFeed';
+import { CATEGORY_META } from '../data/categoryMeta';
+import type { ActivityCategory, FeedCardData, PublicUser } from '../types';
 
 const AVATAR_COLORS = ['#111827', '#4B5563', '#6B7280', '#9CA3AF'];
 
@@ -15,20 +16,45 @@ const FILTERS: { key: ActivityCategory | 'all'; label: string; emoji: string }[]
   { key: 'gym', label: '헬스', emoji: '💪' },
 ];
 
+const COMING_SOON: ActivityCategory[] = ['golf', 'gym'];
+
 const PAGE_SIZE = 10;
 
 export default function HomePage() {
   const [filter, setFilter] = useState<ActivityCategory | 'all'>('all');
   const [page, setPage] = useState(1);
   const [familyMembers, setFamilyMembers] = useState<PublicUser[]>([]);
+  const [feedItems, setFeedItems] = useState<FeedCardData[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     supabase.rpc('list_family_members').then(({ data }) => {
       if (data) setFamilyMembers(data);
     });
+    loadHomeFeed()
+      .then(setFeedItems)
+      .finally(() => setLoading(false));
   }, []);
 
-  const filteredFeed = filter === 'all' ? MOCK_FEED : MOCK_FEED.filter((f) => f.category === filter);
+  function authorName(authorId: string) {
+    return familyMembers.find((m) => m.id === authorId)?.name ?? '알 수 없음';
+  }
+
+  function authorAvatarColor(authorId: string) {
+    const index = familyMembers.findIndex((m) => m.id === authorId);
+    return AVATAR_COLORS[index < 0 ? 0 : index % AVATAR_COLORS.length];
+  }
+
+  const now = new Date();
+  const thisMonth = feedItems.filter((i) => {
+    const d = new Date(i.sortDate);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  });
+  const thisMonthTravel = thisMonth.filter((i) => i.category === 'travel').length;
+  const thisMonthRunning = thisMonth.filter((i) => i.category === 'running').length;
+
+  const comingSoon = filter !== 'all' && COMING_SOON.includes(filter);
+  const filteredFeed = filter === 'all' ? feedItems : feedItems.filter((f) => f.category === filter);
   const totalPages = Math.max(1, Math.ceil(filteredFeed.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const feed = filteredFeed.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -100,19 +126,25 @@ export default function HomePage() {
           className="rounded-2xl px-4 py-4 flex items-center justify-between text-white"
           style={{ background: 'linear-gradient(135deg, #1F2937 0%, #000000 100%)' }}
         >
-          <SummaryStat value="12" label="이번달 기록" />
+          <SummaryStat value={`${thisMonth.length}`} label="이번달 기록" />
           <div className="w-px h-8 bg-white/25" />
-          <SummaryStat value="3" label="여행" />
+          <SummaryStat value={`${thisMonthTravel}`} label="여행" />
           <div className="w-px h-8 bg-white/25" />
-          <SummaryStat value="5" label="운동" />
-          <div className="w-px h-8 bg-white/25" />
-          <SummaryStat value="86" label="좋아요" />
+          <SummaryStat value={`${thisMonthRunning}`} label="운동" />
         </div>
       </div>
 
       {/* Feed */}
       <main className="flex-1 px-5 pb-28 flex flex-col gap-3">
-        {feed.length === 0 ? (
+        {loading ? null : comingSoon ? (
+          <div className="flex flex-col items-center justify-center text-center py-20">
+            <div className="text-4xl mb-3">{CATEGORY_META[filter as ActivityCategory].emoji}</div>
+            <h3 className="text-[16px] font-semibold text-text-900 mb-1">준비중인 기능이에요</h3>
+            <p className="text-[13px] text-text-400">
+              다음 단계에서 {CATEGORY_META[filter as ActivityCategory].label} 기능을 만들 예정입니다.
+            </p>
+          </div>
+        ) : feed.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center py-20">
             <div className="text-4xl mb-3">🗂️</div>
             <h3 className="text-[16px] font-semibold text-text-900 mb-1">아직 기록이 없어요</h3>
@@ -124,11 +156,14 @@ export default function HomePage() {
         ) : (
           <>
             {feed.map((item) => (
-              <FeedCard key={item.id} item={item} />
+              <FeedCard
+                key={item.id}
+                item={item}
+                authorName={authorName(item.authorId)}
+                authorAvatarColor={authorAvatarColor(item.authorId)}
+              />
             ))}
-            {totalPages > 1 && (
-              <Pagination page={currentPage} totalPages={totalPages} onChange={setPage} />
-            )}
+            {totalPages > 1 && <Pagination page={currentPage} totalPages={totalPages} onChange={setPage} />}
           </>
         )}
       </main>

@@ -15,30 +15,9 @@ export interface PublicUser {
   avatar_url: string | null;
 }
 
-export interface FamilyMember {
-  id: string;
-  name: string;
-  avatarColor: string;
-  initial: string;
-}
-
 export interface StatChip {
   icon: string;
   label: string;
-}
-
-export interface FeedItem {
-  id: string;
-  category: ActivityCategory;
-  title: string;
-  summary: string;
-  thumbnail: string;
-  createdAt: string;
-  location?: string;
-  stats: StatChip[];
-  members: FamilyMember[];
-  likeCount: number;
-  imageCount?: number;
 }
 
 export interface CategoryMeta {
@@ -46,4 +25,38 @@ export interface CategoryMeta {
   emoji: string;
   color: string;
   bg: string;
+}
+
+// Unified shape the home feed renders — built from travel_records and
+// running_records rows (see lib/homeFeed.ts).
+export interface FeedCardData {
+  id: string;
+  category: ActivityCategory;
+  title: string;
+  subtitle: string;
+  thumbnailUrl?: string;
+  stats: StatChip[];
+  authorId: string;
+  sortDate: string; // ISO date, for sorting only
+  detailPath: string;
+}
+
+export interface RoutePoint {
+  lat: number;
+  lng: number;
+  timestamp: string;
+}
+
+export interface RunningRecord {
+  id: string;
+  user_id: string;
+  title: string;
+  run_date: string;
+  start_time: string;
+  end_time: string;
+  duration_seconds: number;
+  distance_meters: number;
+  avg_speed_kmh: number | null;
+  max_heart_rate: number | null;
+  route: RoutePoint[];
 }
