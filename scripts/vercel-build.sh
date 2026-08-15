@@ -2,6 +2,7 @@
 set -e
 curl -sL -o /tmp/flutter.tar.xz https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.0-stable.tar.xz
 tar -xf /tmp/flutter.tar.xz -C /tmp
+git config --global --add safe.directory /tmp/flutter
 /tmp/flutter/bin/flutter config --no-analytics
 cd mobile_app
 /tmp/flutter/bin/flutter build web --release \
