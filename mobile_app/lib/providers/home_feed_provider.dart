@@ -60,7 +60,10 @@ final homeFeedProvider = FutureProvider<List<FeedCardData>>((ref) async {
     final maxHr = row['max_heart_rate'] as int?;
     final calories = (row['calories_burned'] as num?)?.toDouble();
     final photoPath = row['photo_path'] as String?;
-    final pace = RunningRecord.formatPace(distanceMeters, durationSeconds);
+    final paceSeconds = (row['avg_pace_seconds'] as num?)?.round();
+    final pace = paceSeconds != null
+        ? RunningRecord.formatPaceSeconds(paceSeconds)
+        : RunningRecord.computePace(distanceMeters, durationSeconds);
     final startTime = DateTime.parse(row['start_time'] as String);
     return FeedCardData(
       id: id,

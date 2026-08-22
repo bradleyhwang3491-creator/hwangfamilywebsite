@@ -37,6 +37,8 @@ class _RunningRecordDetailScreenState extends ConsumerState<RunningRecordDetailS
 
   final _titleController = TextEditingController();
   final _distanceController = TextEditingController();
+  final _durationController = TextEditingController();
+  final _paceController = TextEditingController();
   final _avgHrController = TextEditingController();
   final _maxHrController = TextEditingController();
   final _caloriesController = TextEditingController();
@@ -56,6 +58,8 @@ class _RunningRecordDetailScreenState extends ConsumerState<RunningRecordDetailS
   void dispose() {
     _titleController.dispose();
     _distanceController.dispose();
+    _durationController.dispose();
+    _paceController.dispose();
     _avgHrController.dispose();
     _maxHrController.dispose();
     _caloriesController.dispose();
@@ -90,6 +94,10 @@ class _RunningRecordDetailScreenState extends ConsumerState<RunningRecordDetailS
   void _enterEditMode(RunningRecord record) {
     _titleController.text = record.title;
     _distanceController.text = record.distanceKm.toStringAsFixed(2);
+    _durationController.text = RunningRecord.formatDuration(record.durationSeconds);
+    final pace = record.avgPaceSeconds ??
+        RunningRecord.computePaceSeconds(record.distanceMeters, record.durationSeconds);
+    _paceController.text = pace == null ? '' : RunningRecord.formatPaceInput(pace);
     _avgHrController.text = record.avgHeartRate?.toString() ?? '';
     _maxHrController.text = record.maxHeartRate?.toString() ?? '';
     _caloriesController.text = record.caloriesBurned?.toStringAsFixed(0) ?? '';
@@ -109,6 +117,16 @@ class _RunningRecordDetailScreenState extends ConsumerState<RunningRecordDetailS
       setState(() => _error = '제목을 입력해주세요.');
       return;
     }
+    final durationSeconds = RunningRecord.parseDurationInput(_durationController.text);
+    if (durationSeconds == null) {
+      setState(() => _error = '러닝 시간을 MM:SS 형태로 입력해주세요.');
+      return;
+    }
+    final paceSeconds = RunningRecord.parsePaceInput(_paceController.text);
+    if (_paceController.text.trim().isNotEmpty && paceSeconds == null) {
+      setState(() => _error = '평균 페이스를 분:초 형태로 입력해주세요.');
+      return;
+    }
 
     setState(() {
       _saving = true;
@@ -118,10 +136,8 @@ class _RunningRecordDetailScreenState extends ConsumerState<RunningRecordDetailS
     try {
       final client = SupabaseService.client;
       final distanceMeters = (double.tryParse(_distanceController.text) ?? 0) * 1000;
-      // 시간은 트래킹된 값 그대로이므로, 거리만 바뀌면 속도·페이스가 함께 재계산된다.
-      final avgSpeedKmh = record.durationSeconds > 0
-          ? (distanceMeters / 1000) / (record.durationSeconds / 3600)
-          : null;
+      // 표시값은 페이스이므로 속도는 페이스에서 역산해 둘이 어긋나지 않게 한다.
+      final avgSpeedKmh = paceSeconds != null && paceSeconds > 0 ? 3600 / paceSeconds : null;
 
       var photoPath = record.photoPath;
       if (_newPhotoBytes != null) {
@@ -148,7 +164,9 @@ class _RunningRecordDetailScreenState extends ConsumerState<RunningRecordDetailS
       await client.from('running_records').update({
         'title': _titleController.text.trim(),
         'distance_meters': distanceMeters,
+        'duration_seconds': durationSeconds,
         'avg_speed_kmh': avgSpeedKmh,
+        'avg_pace_seconds': paceSeconds,
         'avg_heart_rate': int.tryParse(_avgHrController.text),
         'max_heart_rate': int.tryParse(_maxHrController.text),
         'calories_burned': double.tryParse(_caloriesController.text),
@@ -348,27 +366,14 @@ class _RunningRecordDetailScreenState extends ConsumerState<RunningRecordDetailS
         children: [
           _Field(label: '제목', child: _textInput(_titleController)),
           const SizedBox(height: 16),
-          // 러닝 시간은 트래킹된 값이라 수정 대상이 아니고, 페이스는 거리에서 다시 계산된다.
+          _Field(label: '총 이동거리 (km)', child: _textInput(_distanceController, keyboardType: TextInputType.number)),
+          const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(child: _StatCard(label: '러닝 시간', value: record.durationLabel)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _StatCard(
-                  label: '평균 페이스',
-                  value: RunningRecord.formatPace(
-                        (double.tryParse(_distanceController.text) ?? 0) * 1000,
-                        record.durationSeconds,
-                      ) ??
-                      '-',
-                ),
-              ),
+              Expanded(child: _Field(label: '러닝 시간 (MM:SS)', child: _textInput(_durationController))),
+              const SizedBox(width: 12),
+              Expanded(child: _Field(label: '평균 페이스 (분:초/km)', child: _textInput(_paceController))),
             ],
-          ),
-          const SizedBox(height: 16),
-          _Field(
-            label: '총 이동거리 (km)',
-            child: _textInput(_distanceController, keyboardType: TextInputType.number, onChanged: (_) => setState(() {})),
           ),
           const SizedBox(height: 16),
           Row(
@@ -433,13 +438,12 @@ class _RunningRecordDetailScreenState extends ConsumerState<RunningRecordDetailS
     );
   }
 
-  Widget _textInput(TextEditingController controller, {TextInputType? keyboardType, ValueChanged<String>? onChanged}) {
+  Widget _textInput(TextEditingController controller, {TextInputType? keyboardType}) {
     return SizedBox(
       height: 48,
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
-        onChanged: onChanged,
         style: const TextStyle(fontSize: 15, color: AppColors.text900),
         decoration: const InputDecoration(contentPadding: EdgeInsets.symmetric(horizontal: 16)),
       ),

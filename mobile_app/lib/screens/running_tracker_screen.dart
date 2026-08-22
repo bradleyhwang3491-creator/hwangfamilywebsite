@@ -49,6 +49,8 @@ class _RunningTrackerScreenState extends ConsumerState<RunningTrackerScreen> {
   String? _error;
 
   final _distanceController = TextEditingController();
+  final _durationController = TextEditingController();
+  final _paceController = TextEditingController();
   final _avgHrController = TextEditingController();
   final _maxHrController = TextEditingController();
   final _caloriesController = TextEditingController();
@@ -62,6 +64,8 @@ class _RunningTrackerScreenState extends ConsumerState<RunningTrackerScreen> {
     _ticker?.cancel();
     _titleController.dispose();
     _distanceController.dispose();
+    _durationController.dispose();
+    _paceController.dispose();
     _avgHrController.dispose();
     _maxHrController.dispose();
     _caloriesController.dispose();
@@ -151,7 +155,11 @@ class _RunningTrackerScreenState extends ConsumerState<RunningTrackerScreen> {
     final end = DateTime.now();
     final distanceKm = _distanceMeters / 1000;
 
+    // 트래킹 결과를 초기값으로 채워두고, 6개 항목 모두 사용자가 고칠 수 있게 한다.
     _distanceController.text = distanceKm.toStringAsFixed(2);
+    _durationController.text = RunningRecord.formatDuration(_elapsed.inSeconds);
+    final pace = RunningRecord.computePaceSeconds(_distanceMeters, _elapsed.inSeconds);
+    if (pace != null) _paceController.text = RunningRecord.formatPaceInput(pace);
 
     setState(() {
       _endTime = end;
@@ -163,6 +171,17 @@ class _RunningTrackerScreenState extends ConsumerState<RunningTrackerScreen> {
     final user = ref.read(sessionProvider).valueOrNull;
     if (user == null || _startTime == null || _endTime == null) return;
 
+    final durationSeconds = RunningRecord.parseDurationInput(_durationController.text);
+    if (durationSeconds == null) {
+      setState(() => _error = '러닝 시간을 MM:SS 형태로 입력해주세요.');
+      return;
+    }
+    final paceSeconds = RunningRecord.parsePaceInput(_paceController.text);
+    if (_paceController.text.trim().isNotEmpty && paceSeconds == null) {
+      setState(() => _error = '평균 페이스를 분:초 형태로 입력해주세요.');
+      return;
+    }
+
     setState(() {
       _saving = true;
       _error = null;
@@ -171,10 +190,8 @@ class _RunningTrackerScreenState extends ConsumerState<RunningTrackerScreen> {
     try {
       final client = SupabaseService.client;
       final distanceMeters = (double.tryParse(_distanceController.text) ?? 0) * 1000;
-      final durationSeconds = _elapsed.inSeconds;
-      // 평균 속도는 거리/시간에서 다시 계산 — 거리 값을 수정해도 항상 일관되게 유지된다.
-      final avgSpeedKmh =
-          durationSeconds > 0 ? (distanceMeters / 1000) / (durationSeconds / 3600) : null;
+      // 화면에 보이는 값은 페이스이므로, 저장용 속도는 페이스에서 역산해 서로 어긋나지 않게 한다.
+      final avgSpeedKmh = paceSeconds != null && paceSeconds > 0 ? 3600 / paceSeconds : null;
 
       final inserted = await client
           .from('running_records')
@@ -187,6 +204,7 @@ class _RunningTrackerScreenState extends ConsumerState<RunningTrackerScreen> {
             'duration_seconds': durationSeconds,
             'distance_meters': distanceMeters,
             'avg_speed_kmh': avgSpeedKmh,
+            'avg_pace_seconds': paceSeconds,
             'avg_heart_rate': int.tryParse(_avgHrController.text),
             'max_heart_rate': int.tryParse(_maxHrController.text),
             'calories_burned': double.tryParse(_caloriesController.text),
@@ -441,18 +459,15 @@ class _RunningTrackerScreenState extends ConsumerState<RunningTrackerScreen> {
             const SizedBox(height: 4),
             Text(_dateFmt.format(_runDate), style: const TextStyle(fontSize: 13, color: AppColors.text400)),
             const SizedBox(height: 20),
-            // 러닝 시간과 평균 페이스는 트래킹 결과에서 계산되는 값이라 읽기 전용.
+            // 6개 항목 모두 트래킹 값으로 채워두되 자유롭게 수정 가능.
+            _Field(label: '총 이동거리 (km)', child: _numInput(_distanceController)),
+            const SizedBox(height: 16),
             Row(
               children: [
-                Expanded(child: _ReadOnlyStat(label: '러닝 시간', value: RunningRecord.formatDuration(_elapsed.inSeconds))),
-                const SizedBox(width: 8),
-                Expanded(child: _ReadOnlyStat(label: '평균 페이스', value: _livePaceLabel())),
+                Expanded(child: _Field(label: '러닝 시간 (MM:SS)', child: _textInput(_durationController, hint: '30:00'))),
+                const SizedBox(width: 12),
+                Expanded(child: _Field(label: '평균 페이스 (분:초/km)', child: _textInput(_paceController, hint: "5:30"))),
               ],
-            ),
-            const SizedBox(height: 16),
-            _Field(
-              label: '총 이동거리 (km)',
-              child: _numInput(_distanceController, onChanged: (_) => setState(() {})),
             ),
             const SizedBox(height: 16),
             Row(
@@ -499,45 +514,24 @@ class _RunningTrackerScreenState extends ConsumerState<RunningTrackerScreen> {
     );
   }
 
-  /// 사용자가 거리를 수정하면 페이스도 즉시 따라간다.
-  String _livePaceLabel() {
-    final km = double.tryParse(_distanceController.text) ?? 0;
-    return RunningRecord.formatPace(km * 1000, _elapsed.inSeconds) ?? '-';
-  }
-
-  Widget _numInput(TextEditingController controller, {String? hint, ValueChanged<String>? onChanged}) {
+  Widget _numInput(TextEditingController controller, {String? hint}) {
     return SizedBox(
       height: 48,
       child: TextField(
         controller: controller,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        onChanged: onChanged,
         decoration: InputDecoration(hintText: hint, contentPadding: const EdgeInsets.symmetric(horizontal: 16)),
       ),
     );
   }
-}
 
-/// 계산으로 채워지는(수정 불가) 통계 한 칸.
-class _ReadOnlyStat extends StatelessWidget {
-  final String label;
-  final String value;
-  const _ReadOnlyStat({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.gray100,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.text900)),
-          const SizedBox(height: 2),
-          Text(label, style: const TextStyle(fontSize: 11, color: AppColors.text400)),
-        ],
+  /// 시간/페이스처럼 콜론이 들어가는 값용 (숫자 키패드로는 ':'를 못 침).
+  Widget _textInput(TextEditingController controller, {String? hint}) {
+    return SizedBox(
+      height: 48,
+      child: TextField(
+        controller: controller,
+        decoration: InputDecoration(hintText: hint, contentPadding: const EdgeInsets.symmetric(horizontal: 16)),
       ),
     );
   }

@@ -30,6 +30,7 @@ class RunningRecord {
   final int durationSeconds;
   final double distanceMeters;
   final double? avgSpeedKmh;
+  final int? avgPaceSeconds;
   final int? avgHeartRate;
   final int? maxHeartRate;
   final double? caloriesBurned;
@@ -46,6 +47,7 @@ class RunningRecord {
     required this.durationSeconds,
     required this.distanceMeters,
     this.avgSpeedKmh,
+    this.avgPaceSeconds,
     this.avgHeartRate,
     this.maxHeartRate,
     this.caloriesBurned,
@@ -63,6 +65,7 @@ class RunningRecord {
         durationSeconds: json['duration_seconds'] as int,
         distanceMeters: (json['distance_meters'] as num).toDouble(),
         avgSpeedKmh: (json['avg_speed_kmh'] as num?)?.toDouble(),
+        avgPaceSeconds: (json['avg_pace_seconds'] as num?)?.round(),
         avgHeartRate: json['avg_heart_rate'] as int?,
         maxHeartRate: json['max_heart_rate'] as int?,
         caloriesBurned: (json['calories_burned'] as num?)?.toDouble(),
@@ -75,23 +78,68 @@ class RunningRecord {
 
   double get distanceKm => distanceMeters / 1000;
 
-  /// 평균 페이스 — 거리와 시간에서 계산한다(별도 컬럼 없음).
-  String? get paceLabel => formatPace(distanceMeters, durationSeconds);
+  /// 저장된 평균 페이스를 우선 쓰고, 없으면(옛 기록) 거리/시간으로 계산한다.
+  String? get paceLabel => avgPaceSeconds != null
+      ? formatPaceSeconds(avgPaceSeconds!)
+      : computePace(distanceMeters, durationSeconds);
 
   String get durationLabel => formatDuration(durationSeconds);
 
-  /// "5'30\"" 형태의 km당 페이스. 거리/시간이 0이면 null.
-  static String? formatPace(double distanceMeters, int durationSeconds) {
+  /// 거리/시간에서 km당 페이스(초)를 계산. 둘 중 하나라도 0이면 null.
+  static int? computePaceSeconds(double distanceMeters, int durationSeconds) {
     final km = distanceMeters / 1000;
     if (km <= 0 || durationSeconds <= 0) return null;
-    final secondsPerKm = durationSeconds / km;
-    var minutes = secondsPerKm ~/ 60;
-    var seconds = (secondsPerKm % 60).round();
-    if (seconds == 60) {
-      minutes += 1;
-      seconds = 0;
-    }
+    return (durationSeconds / km).round();
+  }
+
+  static String? computePace(double distanceMeters, int durationSeconds) {
+    final seconds = computePaceSeconds(distanceMeters, durationSeconds);
+    return seconds == null ? null : formatPaceSeconds(seconds);
+  }
+
+  /// "5'30\"" 형태로 표시.
+  static String formatPaceSeconds(int secondsPerKm) {
+    final minutes = secondsPerKm ~/ 60;
+    final seconds = secondsPerKm % 60;
     return "$minutes'${seconds.toString().padLeft(2, '0')}\"";
+  }
+
+  /// 입력창용 "5:30" 형태.
+  static String formatPaceInput(int secondsPerKm) {
+    final minutes = secondsPerKm ~/ 60;
+    final seconds = secondsPerKm % 60;
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  /// "5:30" / "5'30\"" / "5" 를 km당 초로 파싱. 형식이 틀리면 null.
+  static int? parsePaceInput(String raw) {
+    final text = raw.replaceAll(RegExp(r'''["']'''), ':').replaceAll(RegExp(r':+$'), '').trim();
+    if (text.isEmpty) return null;
+    final parts = text.split(':');
+    if (parts.length > 2) return null;
+    final minutes = int.tryParse(parts[0].trim());
+    if (minutes == null) return null;
+    if (parts.length == 1) return minutes * 60;
+    final seconds = int.tryParse(parts[1].trim());
+    if (seconds == null || seconds >= 60) return null;
+    return minutes * 60 + seconds;
+  }
+
+  /// "MM:SS" / "H:MM:SS" / "45"(분) 을 초로 파싱. 형식이 틀리면 null.
+  static int? parseDurationInput(String raw) {
+    final text = raw.trim();
+    if (text.isEmpty) return null;
+    final parts = text.split(':');
+    if (parts.length > 3) return null;
+    final numbers = <int>[];
+    for (final part in parts) {
+      final value = int.tryParse(part.trim());
+      if (value == null) return null;
+      numbers.add(value);
+    }
+    if (numbers.length == 1) return numbers[0] * 60; // 숫자만 적으면 분으로 해석
+    if (numbers.length == 2) return numbers[0] * 60 + numbers[1];
+    return numbers[0] * 3600 + numbers[1] * 60 + numbers[2];
   }
 
   /// 1시간 미만이면 "MM:SS", 넘으면 "H:MM:SS".
