@@ -239,8 +239,10 @@ class _RecordCard extends StatelessWidget {
               runSpacing: 8,
               children: [
                 _StatChip(icon: '🏃', label: '${record.distanceKm.toStringAsFixed(2)} km'),
-                if (record.avgSpeedKmh != null) _StatChip(icon: '⚡', label: '${record.avgSpeedKmh!.toStringAsFixed(1)} km/h'),
+                if (record.paceLabel != null) _StatChip(icon: '⚡', label: '${record.paceLabel!} /km'),
+                _StatChip(icon: '⏱️', label: record.durationLabel),
                 if (record.maxHeartRate != null) _StatChip(icon: '❤️', label: '최대 ${record.maxHeartRate} bpm'),
+                if (record.caloriesBurned != null) _StatChip(icon: '🔥', label: '${record.caloriesBurned!.toStringAsFixed(0)} kcal'),
               ],
             ),
           ],

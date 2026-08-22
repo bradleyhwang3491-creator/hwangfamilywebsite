@@ -1,7 +1,10 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart' as ll;
 
@@ -9,6 +12,7 @@ import '../config/theme.dart';
 import '../models/running_record.dart';
 import '../providers/running_records_provider.dart';
 import '../providers/session_provider.dart';
+import '../services/image_resize_service.dart';
 import '../services/supabase_service.dart';
 
 final _dateFmt = DateFormat('yyyy-MM-dd');
@@ -33,8 +37,14 @@ class _RunningRecordDetailScreenState extends ConsumerState<RunningRecordDetailS
 
   final _titleController = TextEditingController();
   final _distanceController = TextEditingController();
-  final _speedController = TextEditingController();
+  final _avgHrController = TextEditingController();
   final _maxHrController = TextEditingController();
+  final _caloriesController = TextEditingController();
+
+  /// 수정 모드에서 새로 고른 사진(저장 전까지 업로드하지 않음).
+  Uint8List? _newPhotoBytes;
+  String? _newPhotoFileName;
+  bool _photoRemoved = false;
 
   @override
   void initState() {
@@ -46,9 +56,23 @@ class _RunningRecordDetailScreenState extends ConsumerState<RunningRecordDetailS
   void dispose() {
     _titleController.dispose();
     _distanceController.dispose();
-    _speedController.dispose();
+    _avgHrController.dispose();
     _maxHrController.dispose();
+    _caloriesController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickPhoto() async {
+    final file = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    final resized = await ImageResizeService.resizeToLimit(bytes, file.name);
+    if (!mounted) return;
+    setState(() {
+      _newPhotoBytes = resized.bytes;
+      _newPhotoFileName = resized.fileName;
+      _photoRemoved = false;
+    });
   }
 
   Future<void> _load() async {
@@ -66,11 +90,15 @@ class _RunningRecordDetailScreenState extends ConsumerState<RunningRecordDetailS
   void _enterEditMode(RunningRecord record) {
     _titleController.text = record.title;
     _distanceController.text = record.distanceKm.toStringAsFixed(2);
-    _speedController.text = record.avgSpeedKmh?.toStringAsFixed(1) ?? '';
+    _avgHrController.text = record.avgHeartRate?.toString() ?? '';
     _maxHrController.text = record.maxHeartRate?.toString() ?? '';
+    _caloriesController.text = record.caloriesBurned?.toStringAsFixed(0) ?? '';
     setState(() {
       _error = null;
       _editMode = true;
+      _newPhotoBytes = null;
+      _newPhotoFileName = null;
+      _photoRemoved = false;
     });
   }
 
@@ -88,11 +116,43 @@ class _RunningRecordDetailScreenState extends ConsumerState<RunningRecordDetailS
     });
 
     try {
-      await SupabaseService.client.from('running_records').update({
+      final client = SupabaseService.client;
+      final distanceMeters = (double.tryParse(_distanceController.text) ?? 0) * 1000;
+      // 시간은 트래킹된 값 그대로이므로, 거리만 바뀌면 속도·페이스가 함께 재계산된다.
+      final avgSpeedKmh = record.durationSeconds > 0
+          ? (distanceMeters / 1000) / (record.durationSeconds / 3600)
+          : null;
+
+      var photoPath = record.photoPath;
+      if (_newPhotoBytes != null) {
+        final ext = (_newPhotoFileName ?? 'photo.jpg').split('.').last;
+        final path = '${record.id}/main-${DateTime.now().millisecondsSinceEpoch}.$ext';
+        await client.storage.from('running-photos').uploadBinary(path, _newPhotoBytes!);
+        if (record.photoPath != null) {
+          try {
+            await client.storage.from('running-photos').remove([record.photoPath!]);
+          } catch (_) {
+            // 예전 파일 정리 실패는 무시 — 새 사진은 이미 올라갔다.
+          }
+        }
+        photoPath = path;
+      } else if (_photoRemoved && record.photoPath != null) {
+        try {
+          await client.storage.from('running-photos').remove([record.photoPath!]);
+        } catch (_) {
+          // 위와 동일.
+        }
+        photoPath = null;
+      }
+
+      await client.from('running_records').update({
         'title': _titleController.text.trim(),
-        'distance_meters': (double.tryParse(_distanceController.text) ?? 0) * 1000,
-        'avg_speed_kmh': double.tryParse(_speedController.text),
+        'distance_meters': distanceMeters,
+        'avg_speed_kmh': avgSpeedKmh,
+        'avg_heart_rate': int.tryParse(_avgHrController.text),
         'max_heart_rate': int.tryParse(_maxHrController.text),
+        'calories_burned': double.tryParse(_caloriesController.text),
+        'photo_path': photoPath,
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', record.id);
 
@@ -114,6 +174,13 @@ class _RunningRecordDetailScreenState extends ConsumerState<RunningRecordDetailS
     final record = _record;
     if (record == null) return;
     setState(() => _saving = true);
+    if (record.photoPath != null) {
+      try {
+        await SupabaseService.client.storage.from('running-photos').remove([record.photoPath!]);
+      } catch (_) {
+        // 스토리지 정리 실패가 기록 삭제를 막지는 않는다.
+      }
+    }
     await SupabaseService.client.from('running_records').delete().eq('id', record.id);
     ref.invalidate(runningRecordsProvider(record.userId));
     if (!mounted) return;
@@ -176,14 +243,37 @@ class _RunningRecordDetailScreenState extends ConsumerState<RunningRecordDetailS
           Text(record.title, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: AppColors.text900)),
           const SizedBox(height: 4),
           Text(_dateFmt.format(record.runDate), style: const TextStyle(fontSize: 13, color: AppColors.text400)),
+          if (record.photoPath != null) ...[
+            const SizedBox(height: 16),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.network(
+                SupabaseService.client.storage.from('running-photos').getPublicUrl(record.photoPath!),
+                height: 200,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => const SizedBox.shrink(),
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
           Row(
             children: [
-              Expanded(child: _StatCard(label: '거리', value: '${record.distanceKm.toStringAsFixed(2)} km')),
+              Expanded(child: _StatCard(label: '총 이동거리', value: '${record.distanceKm.toStringAsFixed(2)} km')),
               const SizedBox(width: 8),
-              Expanded(child: _StatCard(label: '평균 속도', value: record.avgSpeedKmh != null ? '${record.avgSpeedKmh!.toStringAsFixed(1)} km/h' : '-')),
+              Expanded(child: _StatCard(label: '평균 페이스', value: record.paceLabel != null ? '${record.paceLabel!} /km' : '-')),
+              const SizedBox(width: 8),
+              Expanded(child: _StatCard(label: '러닝 시간', value: record.durationLabel)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: _StatCard(label: '평균 심박수', value: record.avgHeartRate != null ? '${record.avgHeartRate} bpm' : '-')),
               const SizedBox(width: 8),
               Expanded(child: _StatCard(label: '최고 심박수', value: record.maxHeartRate != null ? '${record.maxHeartRate} bpm' : '-')),
+              const SizedBox(width: 8),
+              Expanded(child: _StatCard(label: '칼로리', value: record.caloriesBurned != null ? '${record.caloriesBurned!.toStringAsFixed(0)} kcal' : '-')),
             ],
           ),
           if (isOwner) ...[
@@ -258,15 +348,53 @@ class _RunningRecordDetailScreenState extends ConsumerState<RunningRecordDetailS
         children: [
           _Field(label: '제목', child: _textInput(_titleController)),
           const SizedBox(height: 16),
+          // 러닝 시간은 트래킹된 값이라 수정 대상이 아니고, 페이스는 거리에서 다시 계산된다.
           Row(
             children: [
-              Expanded(child: _Field(label: '거리 (km)', child: _textInput(_distanceController, keyboardType: TextInputType.number))),
-              const SizedBox(width: 12),
-              Expanded(child: _Field(label: '평균 속도 (km/h)', child: _textInput(_speedController, keyboardType: TextInputType.number))),
+              Expanded(child: _StatCard(label: '러닝 시간', value: record.durationLabel)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _StatCard(
+                  label: '평균 페이스',
+                  value: RunningRecord.formatPace(
+                        (double.tryParse(_distanceController.text) ?? 0) * 1000,
+                        record.durationSeconds,
+                      ) ??
+                      '-',
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
-          _Field(label: '최고 심박수 (bpm)', child: _textInput(_maxHrController, keyboardType: TextInputType.number)),
+          _Field(
+            label: '총 이동거리 (km)',
+            child: _textInput(_distanceController, keyboardType: TextInputType.number, onChanged: (_) => setState(() {})),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: _Field(label: '평균 심박수 (bpm)', child: _textInput(_avgHrController, keyboardType: TextInputType.number))),
+              const SizedBox(width: 12),
+              Expanded(child: _Field(label: '최고 심박수 (bpm)', child: _textInput(_maxHrController, keyboardType: TextInputType.number))),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _Field(label: '총 칼로리 소모량 (kcal)', child: _textInput(_caloriesController, keyboardType: TextInputType.number)),
+          const SizedBox(height: 20),
+          const Text('메인 사진', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.text600)),
+          const SizedBox(height: 6),
+          _EditablePhoto(
+            newBytes: _newPhotoBytes,
+            existingUrl: (!_photoRemoved && record.photoPath != null)
+                ? SupabaseService.client.storage.from('running-photos').getPublicUrl(record.photoPath!)
+                : null,
+            onPick: _pickPhoto,
+            onRemove: () => setState(() {
+              _newPhotoBytes = null;
+              _newPhotoFileName = null;
+              _photoRemoved = true;
+            }),
+          ),
           if (_error != null) ...[
             const SizedBox(height: 16),
             Text(_error!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.text900)),
@@ -305,14 +433,99 @@ class _RunningRecordDetailScreenState extends ConsumerState<RunningRecordDetailS
     );
   }
 
-  Widget _textInput(TextEditingController controller, {TextInputType? keyboardType}) {
+  Widget _textInput(TextEditingController controller, {TextInputType? keyboardType, ValueChanged<String>? onChanged}) {
     return SizedBox(
       height: 48,
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
+        onChanged: onChanged,
         style: const TextStyle(fontSize: 15, color: AppColors.text900),
         decoration: const InputDecoration(contentPadding: EdgeInsets.symmetric(horizontal: 16)),
+      ),
+    );
+  }
+}
+
+/// 수정 모드의 메인 사진 — 새로 고른 사진이 있으면 그걸, 없으면 기존 사진을 보여준다.
+class _EditablePhoto extends StatelessWidget {
+  final Uint8List? newBytes;
+  final String? existingUrl;
+  final VoidCallback onPick;
+  final VoidCallback onRemove;
+  const _EditablePhoto({
+    required this.newBytes,
+    required this.existingUrl,
+    required this.onPick,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget? preview = newBytes != null
+        ? Image.memory(newBytes!, height: 180, width: double.infinity, fit: BoxFit.cover)
+        : existingUrl != null
+            ? Image.network(existingUrl!, height: 180, width: double.infinity, fit: BoxFit.cover)
+            : null;
+
+    if (preview == null) {
+      return InkWell(
+        onTap: onPick,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 96,
+          width: double.infinity,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.grayBorder),
+          ),
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.add_a_photo_outlined, size: 22, color: AppColors.text400),
+              SizedBox(height: 6),
+              Text('사진 추가', style: TextStyle(fontSize: 13, color: AppColors.text400)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Stack(
+      children: [
+        ClipRRect(borderRadius: BorderRadius.circular(12), child: preview),
+        Positioned(
+          top: 8,
+          right: 8,
+          child: Row(
+            children: [
+              _CircleAction(icon: Icons.edit, onTap: onPick),
+              const SizedBox(width: 6),
+              _CircleAction(icon: Icons.close, onTap: onRemove),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CircleAction extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _CircleAction({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      customBorder: const CircleBorder(),
+      child: Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.55), shape: BoxShape.circle),
+        child: Icon(icon, size: 16, color: Colors.white),
       ),
     );
   }

@@ -14,7 +14,7 @@ import '../services/image_resize_service.dart';
 import '../services/supabase_service.dart';
 import '../widgets/bottom_nav.dart';
 
-const _maxPhotos = 10;
+const _maxPhotos = 20;
 final _dateFmt = DateFormat('yyyy-MM-dd');
 
 class _PhotoDraft {

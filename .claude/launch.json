@@ -2,22 +2,22 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "hwang-family-app-dev",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 5173
-    },
-    {
       "name": "hwang-family-mobile-app-dev",
       "runtimeExecutable": "C:\\workspace\\hwang-family-web\\hwang-family-web\\run_mobile_dev.bat",
       "runtimeArgs": [],
-      "port": 5174
+      "port": 5173
     },
     {
       "name": "hwang-family-mobile-app-static",
       "runtimeExecutable": "C:\\workspace\\hwang-family-web\\hwang-family-web\\run_mobile_static.bat",
       "runtimeArgs": [],
       "port": 5175
+    },
+    {
+      "name": "hwang-family-legacy-react-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5176
     }
   ]
 }

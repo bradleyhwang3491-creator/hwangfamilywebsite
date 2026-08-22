@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../models/feed_card_data.dart';
 import '../models/feed_item.dart';
+import '../models/running_record.dart';
 import '../services/supabase_service.dart';
 
 final _dateFmt = DateFormat('yyyy-MM-dd');
@@ -54,19 +55,26 @@ final homeFeedProvider = FutureProvider<List<FeedCardData>>((ref) async {
 
   final runningCards = (runningRows as List<dynamic>).map((row) {
     final id = row['id'] as String;
-    final distanceKm = (row['distance_meters'] as num) / 1000;
-    final avgSpeed = row['avg_speed_kmh'] as num?;
+    final distanceMeters = (row['distance_meters'] as num).toDouble();
+    final durationSeconds = row['duration_seconds'] as int;
     final maxHr = row['max_heart_rate'] as int?;
+    final calories = (row['calories_burned'] as num?)?.toDouble();
+    final photoPath = row['photo_path'] as String?;
+    final pace = RunningRecord.formatPace(distanceMeters, durationSeconds);
     final startTime = DateTime.parse(row['start_time'] as String);
     return FeedCardData(
       id: id,
       category: ActivityCategory.running,
       title: row['title'] as String,
       subtitle: _dateFmt.format(DateTime.parse(row['run_date'] as String)),
+      thumbnailUrl:
+          photoPath == null ? null : client.storage.from('running-photos').getPublicUrl(photoPath),
       stats: [
-        StatChip(icon: '🏃', label: '${distanceKm.toStringAsFixed(2)} km'),
-        if (avgSpeed != null) StatChip(icon: '⚡', label: '${avgSpeed.toStringAsFixed(1)} km/h'),
+        StatChip(icon: '🏃', label: '${(distanceMeters / 1000).toStringAsFixed(2)} km'),
+        if (pace != null) StatChip(icon: '⚡', label: '$pace /km'),
+        StatChip(icon: '⏱️', label: RunningRecord.formatDuration(durationSeconds)),
         if (maxHr != null) StatChip(icon: '❤️', label: '최대 $maxHr bpm'),
+        if (calories != null) StatChip(icon: '🔥', label: '${calories.toStringAsFixed(0)} kcal'),
       ],
       authorId: row['user_id'] as String,
       sortDate: startTime,

@@ -17,7 +17,7 @@ import '../services/supabase_service.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/photo_lightbox.dart';
 
-const _maxPhotos = 10;
+const _maxPhotos = 20;
 final _dateFmt = DateFormat('yyyy-MM-dd');
 
 class _NewPhotoDraft {
